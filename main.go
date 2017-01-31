@@ -7,12 +7,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
+	"math/rand"
 	"net/http"
 	"os"
+	"time"
 
 	oidc "github.com/coreos/go-oidc"
 
-	"github.com/davecgh/go-spew/spew"
+	"errors"
+	//	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 )
@@ -22,6 +26,7 @@ var (
 	clientID     string = getenv("OAUTH2_CLIENT_ID", "MYCLIENTID")
 	clientSecret string = getenv("OAUTH2_CLIENT_SECRET", "MYCLIENTSECRET")
 	redirectUrl  string = "http://localhost:9000/auth/google/callback"
+	appNonce     string = getenv("OAUTH2_NONCE", "asuper secret nonce")
 )
 
 func getenv(key, fallback string) string {
@@ -30,6 +35,42 @@ func getenv(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func init() {
+	Seed()
+}
+
+func Seed() {
+	rand.Seed(GenSeed())
+	rand.Seed(int64(RandomInt64(0, math.MaxInt64)))
+}
+
+func GenSeed() int64 {
+	return time.Now().UTC().UnixNano() + int64(RandomInt(0, 9999999))
+}
+
+func RandomString(l int) string {
+	bytes := make([]byte, l)
+	for i := 0; i < l; i++ {
+		bytes[i] = byte(RandomInt(65, 90))
+	}
+	return string(bytes)
+}
+
+func RandomInt(min int, max int) int {
+	return min + rand.Intn(max-min)
+}
+
+func RandomInt64(min int64, max int64) int64 {
+	return min + rand.Int63n(max-min)
+}
+
+func ClaimNonce(nonce string) error {
+	if nonce != appNonce {
+		return errors.New("unregonized nonce")
+	}
+	return nil
 }
 
 func main() {
@@ -42,6 +83,7 @@ func main() {
 	oidcConfig := &oidc.Config{
 		ClientID:       clientID,
 		SkipNonceCheck: false,
+		ClaimNonce:     ClaimNonce,
 	}
 	verifier := provider.Verifier(oidcConfig)
 
@@ -53,7 +95,7 @@ func main() {
 		Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
 	}
 
-	state := "foobar" // Don't do this in production.
+	state := RandomString(128) // Don't do this in production.
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		const htmlIndex = `<html><body>
@@ -64,7 +106,7 @@ func main() {
 	})
 
 	http.HandleFunc("/auth/google/login", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, config.AuthCodeURL(state), http.StatusFound)
+		http.Redirect(w, r, config.AuthCodeURL(state, oidc.Nonce(appNonce)), http.StatusFound)
 	})
 
 	http.HandleFunc("/auth/google/callback", func(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +135,6 @@ func main() {
 			return
 		}
 		idToken, err := verifier.Verify(ctx, rawIDToken)
-		spew.Dump(rawIDToken)
 		if err != nil {
 			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
 			return
