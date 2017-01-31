@@ -1,0 +1,61 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "9KF93pI4FaHunfEHCL8aBJNRLXY=",
+			"path": "github.com/coreos/go-oidc",
+			"revision": "f828b1fc9b58b59bd70ace766bfc190216b58b01",
+			"revisionTime": "2017-01-30T17:51:17Z"
+		},
+		{
+			"checksumSHA1": "BoXdUBWB8UnSlFlbnuTQaPqfCGk=",
+			"path": "github.com/op/go-logging",
+			"revision": "970db520ece77730c7e4724c61121037378659d9",
+			"revisionTime": "2016-03-15T20:05:05Z"
+		},
+		{
+			"checksumSHA1": "WwnvMJM+0RyV1j7H0sy/+Agfe3Y=",
+			"path": "github.com/pquerna/cachecontrol",
+			"revision": "c97913dcbd76de40b051a9b4cd827f7eaeb7a868",
+			"revisionTime": "2016-04-21T23:16:12Z"
+		},
+		{
+			"checksumSHA1": "3cmO6a0KjdpnIlVbq4CcJxbHyQs=",
+			"path": "github.com/pquerna/cachecontrol/cacheobject",
+			"revision": "c97913dcbd76de40b051a9b4cd827f7eaeb7a868",
+			"revisionTime": "2016-04-21T23:16:12Z"
+		},
+		{
+			"checksumSHA1": "WHc3uByvGaMcnSoI21fhzYgbOgg=",
+			"path": "golang.org/x/net/context/ctxhttp",
+			"revision": "f2499483f923065a842d38eb4c7f1927e6fc6e6d",
+			"revisionTime": "2017-01-14T04:22:49Z"
+		},
+		{
+			"checksumSHA1": "XH7CgbL5Z8COUc+MKrYqS3FFosY=",
+			"path": "golang.org/x/oauth2",
+			"revision": "314dd2c0bf3ebd592ec0d20847d27e79d0dbe8dd",
+			"revisionTime": "2016-12-14T09:25:55Z"
+		},
+		{
+			"checksumSHA1": "o5NrWoSkC+ugoK9D6ragLSrXHw0=",
+			"path": "gopkg.in/square/go-jose.v2",
+			"revision": "296c7f1463ec9b712176dc804dea0173d06dc728",
+			"revisionTime": "2016-11-17T00:42:38Z"
+		},
+		{
+			"checksumSHA1": "j94zYNLTvPSnfnqVKJ4LUf++uX4=",
+			"path": "gopkg.in/square/go-jose.v2/cipher",
+			"revision": "296c7f1463ec9b712176dc804dea0173d06dc728",
+			"revisionTime": "2016-11-17T00:42:38Z"
+		},
+		{
+			"checksumSHA1": "JFun0lWY9eqd80Js2iWsehu1gc4=",
+			"path": "gopkg.in/square/go-jose.v2/json",
+			"revision": "296c7f1463ec9b712176dc804dea0173d06dc728",
+			"revisionTime": "2016-11-17T00:42:38Z"
+		}
+	],
+	"rootPath": "github.com/bboortz/go-oidc-testapp"
+}
