@@ -12,6 +12,7 @@ import (
 
 	oidc "github.com/coreos/go-oidc"
 
+	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 )
@@ -38,6 +39,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	oidcConfig := &oidc.Config{
+		ClientID:       clientID,
+		SkipNonceCheck: false,
+	}
+	verifier := provider.Verifier(oidcConfig)
+
 	config := oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
@@ -61,6 +68,7 @@ func main() {
 	})
 
 	http.HandleFunc("/auth/google/callback", func(w http.ResponseWriter, r *http.Request) {
+		//var verifier = provider.Verifier()
 		if r.URL.Query().Get("state") != state {
 			http.Error(w, "state did not match", http.StatusBadRequest)
 			return
@@ -78,10 +86,32 @@ func main() {
 			return
 		}
 
+		///
+		rawIDToken, ok := oauth2Token.Extra("id_token").(string)
+		if !ok {
+			http.Error(w, "No id_token field in oauth2 token.", http.StatusInternalServerError)
+			return
+		}
+		idToken, err := verifier.Verify(ctx, rawIDToken)
+		spew.Dump(rawIDToken)
+		if err != nil {
+			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		//oauth2Token.AccessToken = "*REDACTED*"
+
 		resp := struct {
-			OAuth2Token *oauth2.Token
-			UserInfo    *oidc.UserInfo
-		}{oauth2Token, userInfo}
+			OAuth2Token   *oauth2.Token
+			RawIDToken    string
+			IDToken       *oidc.IDToken
+			IDTokenClaims *json.RawMessage // ID Token payload is just JSON.
+			UserInfo      *oidc.UserInfo
+		}{oauth2Token, rawIDToken, idToken, new(json.RawMessage), userInfo}
+		if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		data, err := json.MarshalIndent(resp, "", "    ")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
