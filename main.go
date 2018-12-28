@@ -16,17 +16,22 @@ import (
 	oidc "github.com/coreos/go-oidc"
 
 	"errors"
-	//	"github.com/davecgh/go-spew/spew"
+
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 )
 
 var (
-	ipport       string = getenv("IPPORT", ":9000")
-	clientID     string = getenv("OAUTH2_CLIENT_ID", "MYCLIENTID")
-	clientSecret string = getenv("OAUTH2_CLIENT_SECRET", "MYCLIENTSECRET")
-	redirectUrl  string = "http://localhost:9000/auth/google/callback"
-	appNonce     string = getenv("OAUTH2_NONCE", "asuper secret nonce")
+	redirectURL  = "http://localhost:9000/auth/callback"
+	ipport       = getenv("IPPORT", ":9000")
+	clientID     = getenv("OAUTH2_CLIENT_ID", "MYCLIENTID")
+	clientSecret = getenv("OAUTH2_CLIENT_SECRET", "MYCLIENTSECRET")
+	appNonce     = getenv("OAUTH2_NONCE", "asuper secret nonce")
+	state        = randomString(128) // Don't do this in production.
+	ctx          context.Context
+	config       = oauth2.Config{}
+	provider     *oidc.Provider
+	verifier     *oidc.IDTokenVerifier
 )
 
 func getenv(key, fallback string) string {
@@ -37,131 +42,127 @@ func getenv(key, fallback string) string {
 	return value
 }
 
-func init() {
-	Seed()
+func seed() {
+	rand.Seed(genSeed())
+	rand.Seed(int64(randomInt64(0, math.MaxInt64)))
 }
 
-func Seed() {
-	rand.Seed(GenSeed())
-	rand.Seed(int64(RandomInt64(0, math.MaxInt64)))
+func genSeed() int64 {
+	return time.Now().UTC().UnixNano() + int64(randomInt(0, 9999999))
 }
 
-func GenSeed() int64 {
-	return time.Now().UTC().UnixNano() + int64(RandomInt(0, 9999999))
-}
-
-func RandomString(l int) string {
+func randomString(l int) string {
 	bytes := make([]byte, l)
 	for i := 0; i < l; i++ {
-		bytes[i] = byte(RandomInt(65, 90))
+		bytes[i] = byte(randomInt(65, 90))
 	}
 	return string(bytes)
 }
 
-func RandomInt(min int, max int) int {
+func randomInt(min int, max int) int {
 	return min + rand.Intn(max-min)
 }
 
-func RandomInt64(min int64, max int64) int64 {
+func randomInt64(min int64, max int64) int64 {
 	return min + rand.Int63n(max-min)
 }
 
-func ClaimNonce(nonce string) error {
+func claimNonce(nonce string) error {
 	if nonce != appNonce {
 		return errors.New("unregonized nonce")
 	}
 	return nil
 }
 
-func main() {
-	ctx := context.Background()
+func indexRoute(w http.ResponseWriter, r *http.Request) {
+	const htmlStr = `<html><body>
+				    <a href="/auth/login">Log in with Google</a>
+			        </body></html>`
+	fmt.Fprintf(w, htmlStr)
+}
 
-	provider, err := oidc.NewProvider(ctx, "https://accounts.google.com")
+func loginRoute(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, config.AuthCodeURL(state, oidc.Nonce(appNonce)), http.StatusFound)
+}
+
+func callbackRoute(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("state") != state {
+		http.Error(w, "state did not match", http.StatusBadRequest)
+		return
+	}
+
+	oauth2Token, err := config.Exchange(ctx, r.URL.Query().Get("code"))
+	if err != nil {
+		http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	userInfo, err := provider.UserInfo(ctx, oauth2.StaticTokenSource(oauth2Token))
+	if err != nil {
+		http.Error(w, "Failed to get userinfo: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
+	if !ok {
+		http.Error(w, "No id_token field in oauth2 token.", http.StatusInternalServerError)
+		return
+	}
+	idToken, err := verifier.Verify(ctx, rawIDToken)
+	if err != nil {
+		http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	resp := struct {
+		OAuth2Token    *oauth2.Token
+		RawAccessToken string
+		RawIDToken     string
+		IDToken        *oidc.IDToken
+		IDTokenClaims  *json.RawMessage // ID Token payload is just JSON.
+
+		UserInfo *oidc.UserInfo
+	}{oauth2Token, oauth2Token.AccessToken, rawIDToken, idToken, new(json.RawMessage), userInfo}
+	if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data, err := json.MarshalIndent(resp, "", "    ")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write(data)
+}
+
+func main() {
+	ctx = context.Background()
+	var err error
+
+	provider, err = oidc.NewProvider(ctx, "https://accounts.google.com")
 	if err != nil {
 		log.Fatal(err)
 	}
 	oidcConfig := &oidc.Config{
 		ClientID:       clientID,
 		SkipNonceCheck: false,
-		ClaimNonce:     ClaimNonce,
+		ClaimNonce:     claimNonce,
 	}
-	verifier := provider.Verifier(oidcConfig)
+	verifier = provider.Verifier(oidcConfig)
 
-	config := oauth2.Config{
+	config = oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		Endpoint:     provider.Endpoint(),
-		RedirectURL:  redirectUrl,
+		RedirectURL:  redirectURL,
 		Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
 	}
 
-	state := RandomString(128) // Don't do this in production.
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		const htmlIndex = `<html><body>
-				        <a href="/auth/google/login">Log in with Google</a>
-						        </body></html>
-								        `
-		fmt.Fprintf(w, htmlIndex)
-	})
-
-	http.HandleFunc("/auth/google/login", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, config.AuthCodeURL(state, oidc.Nonce(appNonce)), http.StatusFound)
-	})
-
-	http.HandleFunc("/auth/google/callback", func(w http.ResponseWriter, r *http.Request) {
-		//var verifier = provider.Verifier()
-		if r.URL.Query().Get("state") != state {
-			http.Error(w, "state did not match", http.StatusBadRequest)
-			return
-		}
-
-		oauth2Token, err := config.Exchange(ctx, r.URL.Query().Get("code"))
-		if err != nil {
-			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		userInfo, err := provider.UserInfo(ctx, oauth2.StaticTokenSource(oauth2Token))
-		if err != nil {
-			http.Error(w, "Failed to get userinfo: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		///
-		rawIDToken, ok := oauth2Token.Extra("id_token").(string)
-		if !ok {
-			http.Error(w, "No id_token field in oauth2 token.", http.StatusInternalServerError)
-			return
-		}
-		idToken, err := verifier.Verify(ctx, rawIDToken)
-		if err != nil {
-			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		//oauth2Token.AccessToken = "*REDACTED*"
-
-		resp := struct {
-			OAuth2Token   *oauth2.Token
-			RawIDToken    string
-			IDToken       *oidc.IDToken
-			IDTokenClaims *json.RawMessage // ID Token payload is just JSON.
-			UserInfo      *oidc.UserInfo
-		}{oauth2Token, rawIDToken, idToken, new(json.RawMessage), userInfo}
-		if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		data, err := json.MarshalIndent(resp, "", "    ")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Write(data)
-	})
+	http.HandleFunc("/", indexRoute)
+	http.HandleFunc("/auth/login", loginRoute)
+	http.HandleFunc("/auth/callback", callbackRoute)
 
 	log.Printf("listening on http://%s/", ipport)
-	log.Printf("redirect url: %s", redirectUrl)
+	log.Printf("redirect url: %s", redirectURL)
 	log.Fatal(http.ListenAndServe(ipport, nil))
 }
