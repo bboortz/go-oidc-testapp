@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	redirectURL  = "http://localhost:5000/auth/callback"
-	port         = getenv("PORT", "5000")
+	redirectURL  = "http://localhost:9000/auth/callback"
+	port         = getenv("PORT", "9000")
 	clientID     = getenv("OAUTH2_CLIENT_ID", "MYCLIENTID")
 	clientSecret = getenv("OAUTH2_CLIENT_SECRET", "MYCLIENTSECRET")
 	appNonce     = getenv("OAUTH2_NONCE", "asuper secret nonce")
