@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	redirectURL  = "http://localhost:9000/auth/callback"
-	ipport       = getenv("IPPORT", ":9000")
+	redirectURL  = "http://localhost:5000/auth/callback"
+	port         = getenv("PORT", "5000")
 	clientID     = getenv("OAUTH2_CLIENT_ID", "MYCLIENTID")
 	clientSecret = getenv("OAUTH2_CLIENT_SECRET", "MYCLIENTSECRET")
 	appNonce     = getenv("OAUTH2_NONCE", "asuper secret nonce")
@@ -162,7 +162,7 @@ func main() {
 	http.HandleFunc("/auth/login", loginRoute)
 	http.HandleFunc("/auth/callback", callbackRoute)
 
-	log.Printf("listening on http://%s/", ipport)
+	log.Printf("listening on http://%s/", port)
 	log.Printf("redirect url: %s", redirectURL)
-	log.Fatal(http.ListenAndServe(ipport, nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
 }
