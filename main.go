@@ -43,6 +43,12 @@ func getenv(key, fallback string) string {
 	return value
 }
 
+func printEnvVars() {
+	for _, pair := range os.Environ() {
+		fmt.Println(pair)
+	}
+}
+
 func seed() {
 	rand.Seed(genSeed())
 	rand.Seed(int64(randomInt64(0, math.MaxInt64)))
@@ -137,6 +143,8 @@ func callbackRoute(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	printEnvVars()
+
 	ctx = context.Background()
 	var err error
 
