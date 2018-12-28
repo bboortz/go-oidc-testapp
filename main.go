@@ -22,23 +22,24 @@ import (
 )
 
 var (
-	redirectURL  = "http://localhost:9000/auth/callback"
 	port         = getenv("PORT", "9000")
 	clientID     = getenv("OAUTH2_CLIENT_ID", "MYCLIENTID")
 	clientSecret = getenv("OAUTH2_CLIENT_SECRET", "MYCLIENTSECRET")
-	appNonce     = getenv("OAUTH2_NONCE", "asuper secret nonce")
+	redirectURL  = getenv("REDIRECT_URL", "http://localhost:9000/auth/callback")
+	appNonce     = getenv("OAUTH2_NONCE", "a sUp3r s3cR3t n0nCe")
 	state        = randomString(128) // Don't do this in production.
 	ctx          context.Context
-	config       = oauth2.Config{}
+	config       oauth2.Config
 	provider     *oidc.Provider
 	verifier     *oidc.IDTokenVerifier
 )
 
 func getenv(key, fallback string) string {
-	value := os.Getenv(key)
-	if len(value) == 0 {
+	value, ok := os.LookupEnv(key)
+	if !ok {
 		return fallback
 	}
+
 	return value
 }
 

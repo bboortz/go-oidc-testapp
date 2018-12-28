@@ -1,0 +1,1 @@
+web: go-oidc-testapp
